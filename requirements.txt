@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+celery
+redis
+psycopg[binary]
+sqlalchemy
+crewai[google-genai]
+crewai-tools
+python-dotenv
+pandas
+litellm
