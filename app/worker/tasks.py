@@ -22,8 +22,6 @@ celery_app = Celery(
     backend=REDIS_URL,
 )
 
-# Separate plain Redis client (not through Celery) used for our own
-# question-answer cache, distinct from Celery's internal broker/backend usage.
 redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 
 
@@ -60,6 +58,8 @@ def run_sql_agent_task(question: str) -> dict:
     Background task that runs the full SQL agent loop for a question,
     then caches the result in Redis (keyed by the normalized question)
     so repeated questions can be answered instantly next time.
+    Only successful results are cached - a failed attempt should not
+    permanently block a fresh retry on the next request.
 
     Args:
         question (str): The user's plain-English question.
@@ -72,11 +72,12 @@ def run_sql_agent_task(question: str) -> dict:
     result = run_agent_loop(question)
     result["cached"] = False
 
-    cache_key = f"answer:{normalize_question(question)}"
-    try:
-        redis_client.setex(cache_key, CACHE_EXPIRY_SECONDS, json.dumps(result))
-        logger.info(f"Cached result under key: {cache_key}")
-    except Exception as e:
-        logger.error(f"Failed to cache result: {e}")
+    if result.get("status") == "success":
+        cache_key = f"answer:{normalize_question(question)}"
+        try:
+            redis_client.setex(cache_key, CACHE_EXPIRY_SECONDS, json.dumps(result))
+            logger.info(f"Cached result under key: {cache_key}")
+        except Exception as e:
+            logger.error(f"Failed to cache result: {e}")
 
     return result

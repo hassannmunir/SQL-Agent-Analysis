@@ -4,7 +4,8 @@ celery
 redis
 psycopg[binary]
 sqlalchemy
-crewai[google-genai]
+crewai
+google-genai
 crewai-tools
 python-dotenv
 pandas

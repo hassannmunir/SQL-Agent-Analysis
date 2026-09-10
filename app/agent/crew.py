@@ -7,34 +7,42 @@ Defines the CrewAI agents used in the SQL analysis pipeline:
 
 from crewai import Agent, LLM
 
-from app.settings import GOOGLE_API_KEY, LLM_MODEL
+from app.settings import GROQ_API_KEY, LLM_MODEL
 from app.agent.sql_tool import execute_sql_query
+
+# --- Workaround for CrewAI bug #5886 ---
+# CrewAI unconditionally injects a "cache_breakpoint" key into system
+# messages (meant only for Anthropic's prompt-caching feature). Non-
+# Anthropic providers like Groq reject this key with a 400 error.
+# We patch mark_cache_breakpoint to a no-op so no such key is added.
+import crewai.llms.cache as _crewai_cache
+
+
+def _noop_mark_cache_breakpoint(message):
+    return message
+
+
+_crewai_cache.mark_cache_breakpoint = _noop_mark_cache_breakpoint
 
 # Shared LLM configuration used by both agents
 llm = LLM(
     model=LLM_MODEL,
-    api_key=GOOGLE_API_KEY,
+    api_key=GROQ_API_KEY,
 )
 
 # Description of our database schema, given to the SQL generator agent
 # so it knows what tables and columns are available to query.
 DATABASE_SCHEMA = """
 Tables:
+customers(customer_id, customer_unique_id, customer_zip_code_prefix, customer_city, customer_state)
+products(product_id, product_category_name)
+orders(order_id, customer_id, order_status, order_purchase_timestamp, order_approved_at, order_delivered_carrier_date, order_delivered_customer_date, order_estimated_delivery_date)
+order_items(order_id, order_item_id, product_id, price, freight_value)
 
-customers (customer_id, customer_unique_id, customer_zip_code_prefix, customer_city, customer_state)
-
-products (product_id, product_category_name)
-
-orders (order_id, customer_id, order_status, order_purchase_timestamp,
-        order_approved_at, order_delivered_carrier_date,
-        order_delivered_customer_date, order_estimated_delivery_date)
-    - order_status can be: delivered, shipped, canceled, unavailable,
-      invoiced, processing, created, approved
-    - IMPORTANT: canceled and unavailable orders should usually be
-      excluded from revenue/sales calculations unless the question
-      specifically asks about them.
-
-order_items (order_id, order_item_id, product_id, price, freight_value)
+Rules:
+- order_status values: delivered, shipped, canceled, unavailable, invoiced, processing, created, approved.
+- Exclude canceled/unavailable from REVENUE/SUM(price) unless asked. Do NOT exclude for simple COUNT questions.
+- "average order value"/"average price" = AVG(price) directly on order_items rows (per line-item), NOT avg of per-order SUM(price).
 """
 
 sql_generator_agent = Agent(

@@ -28,8 +28,12 @@ REDIS_PORT = os.getenv("REDIS_PORT", "6379")
 REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/0"
 
 # --- LLM settings ---
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-LLM_MODEL = "gemini/gemini-3.5-flash"
+# Switched from Google Gemini to Groq: Gemini's free-tier quota
+# (per-day/per-minute, tied to the Google Cloud project) kept blocking
+# testing. Groq's free tier is far more generous and needs no phone
+# verification.
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+LLM_MODEL = "groq/openai/gpt-oss-120b"
 
 # --- Agent behavior settings ---
 MAX_AGENT_RETRIES = 3  # per task requirement: max 3 attempts before giving up
